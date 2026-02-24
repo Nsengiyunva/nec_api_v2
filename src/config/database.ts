@@ -1,9 +1,9 @@
 import { Sequelize } from "sequelize";
 
 export const sequelize = new Sequelize(
-  "necdb",
-  "admin",
-  "admin@25N",
+  process.env.DB_NAME || "necdb",
+  process.env.DB_USERNAME || "admin",
+  process.env.DB_PASS || "admin@25N",
   {
     host: "localhost",
     dialect: "mysql"

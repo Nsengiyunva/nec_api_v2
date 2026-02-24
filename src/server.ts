@@ -19,7 +19,7 @@ app.use("/api/auth", authRoutes);
 // app.use("/api/farmers", farmerRoutes);
 // app.use("/api/nfa", nfaMainRoutes);
 
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
+console.log("JWT_SECRET:", );
 
 
 connectDB();
