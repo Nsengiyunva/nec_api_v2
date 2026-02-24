@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions  } from "jsonwebtoken";
-import { Admin } from "../models/User";
+import { Admin } from "../models/nec_user";
 import dotenv from "dotenv";
 
 dotenv.config();

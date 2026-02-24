@@ -1,9 +1,9 @@
 import { Sequelize } from "sequelize";
 
 export const sequelize = new Sequelize(
-  "erbdb",
-  "erbadmin",
-  "admin@NSE#256",
+  "necdb",
+  "admin",
+  "admin@25N",
   {
     host: "localhost",
     dialect: "mysql"

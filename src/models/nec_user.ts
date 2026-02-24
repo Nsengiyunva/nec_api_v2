@@ -113,6 +113,6 @@ Admin.init(
   },
   {
     sequelize,
-    tableName: "users"
+    tableName: "nec_user"
   }
 );
