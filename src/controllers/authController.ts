@@ -34,7 +34,8 @@ export const register = async (req: Request, res: Response) => {
       gender,
       dob,
       email,
-      password
+      password,
+      name
     } = req.body;
 
     const exists = await Admin.findOne({ where: { email } });
@@ -51,6 +52,7 @@ export const register = async (req: Request, res: Response) => {
       gender,
       dob,
       email,
+      name,
       password: hashedPassword,
     });
 
