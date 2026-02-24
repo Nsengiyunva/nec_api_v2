@@ -27,7 +27,15 @@ export const generateToken = (id: number): string => {
 // Register
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const {
+      firstName,
+      lastName,
+      otherNames,
+      gender,
+      dob,
+      email,
+      password
+    } = req.body;
 
     const exists = await Admin.findOne({ where: { email } });
     if (exists) {
@@ -37,16 +45,25 @@ export const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await Admin.create({
-      name,
+      firstName,
+      lastName,
+      otherNames,
+      gender,
+      dob,
       email,
       password: hashedPassword,
     });
 
-    res.json({ message: "User registered", user });
+    res.status(201).json({
+      message: "User registered",
+      user
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
-};
+}
 
 // Login
 export const login = async (req: Request, res: Response) => {
