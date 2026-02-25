@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
-import { Payroll } from "../models/payroll";
-import { PayrollComment } from "../models/payroll_comment";
-import { PayrollStatusHistory } from "../models/payroll_history";
-import { Admin } from "../models/nec_user";
+// import { Payroll } from "../models/payroll";
+// import { PayrollComment } from "../models/payroll_comment";
+// import { PayrollStatusHistory } from "../models/payroll_history";
+// import { Admin } from "../models/nec_user";
 
+import { models } from "../models";
+const { Payroll, PayrollComment, Admin,PayrollStatusHistory } = models;
 
 // ===============================
 // Upload Payroll

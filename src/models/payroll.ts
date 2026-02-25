@@ -1,6 +1,5 @@
 import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../config/database";
-import { PayrollComment } from "./payroll_comment";
 
 export class Payroll extends Model {
   public id!: number;
@@ -14,41 +13,13 @@ export class Payroll extends Model {
 
 Payroll.init(
   {
-    id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    month: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    fileName: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    filePath: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    fileSize: {
-      type: DataTypes.STRING,
-    },
-    uploadedBy: {
-      type: DataTypes.STRING,
-    },
-    status: {
-      type: DataTypes.STRING,
-      defaultValue: "Pending",
-    },
+    id: { type: DataTypes.BIGINT.UNSIGNED, autoIncrement: true, primaryKey: true },
+    month: { type: DataTypes.STRING, allowNull: false },
+    fileName: { type: DataTypes.STRING, allowNull: false },
+    filePath: { type: DataTypes.STRING, allowNull: false },
+    fileSize: { type: DataTypes.STRING },
+    uploadedBy: { type: DataTypes.STRING },
+    status: { type: DataTypes.STRING, defaultValue: "Pending" },
   },
-  {
-    sequelize,
-    tableName: "payroll",
-  }
+  { sequelize, tableName: "payroll" }
 );
-
-Payroll.hasMany(PayrollComment, {
-    foreignKey: "payrollId",
-    as: "comments",
-});
