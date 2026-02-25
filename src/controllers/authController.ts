@@ -35,7 +35,8 @@ export const register = async (req: Request, res: Response) => {
       dob,
       email,
       password,
-      name
+      name, 
+      user_type
     } = req.body;
 
     const exists = await Admin.findOne({ where: { email } });
@@ -53,6 +54,7 @@ export const register = async (req: Request, res: Response) => {
       dob,
       email,
       name,
+      user_type,
       password: hashedPassword,
     });
 
@@ -86,7 +88,8 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        user_type: user.user_type
       }
     });
   } catch (error) {
