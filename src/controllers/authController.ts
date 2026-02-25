@@ -22,7 +22,7 @@ export const generateToken = (id: number): string => {
   };
 
   return jwt.sign(payload, secret, options);
-};
+}
 
 // Register
 export const register = async (req: Request, res: Response) => {
@@ -194,7 +194,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
-};
+}
 
 
 
