@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { getPayrolls,uploadPayroll, addComment, approvePayroll, rejectPayroll } from "../controllers/payrollController";
+import { upload } from "../config/multer";
+
+const router = Router();
+
+router.post("/", upload.single("file"), uploadPayroll);
+router.get("/", getPayrolls);
+router.post("/:id/comments", addComment);
+router.post("/:id/approve", approvePayroll);
+router.post("/:id/reject", rejectPayroll);
+
+export default router;

@@ -19,6 +19,7 @@ export class Admin extends Model {
   public department!: string;
   public status!: string;
   public station!: string;
+  public user_type!: string;
 }
  
 Admin.init(
@@ -55,6 +56,11 @@ Admin.init(
     },
 
     dob: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+
+    user_type: {
       type: DataTypes.STRING,
       allowNull: false
     },

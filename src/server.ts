@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 // import farmerRoutes from "./routes/farmerRoutes";
 import authRoutes from "./routes/authRoutes";
+import payrollRoutes from "./routes/payrollRoute";
 import { sequelize, connectDB } from "./config/database";
 import cors from "cors";
 // import "./models/associations";
@@ -16,6 +17,7 @@ app.use(express.json());
 
 
 app.use("/api/auth", authRoutes);
+app.use("/api/payroll", payrollRoutes);
 // app.use("/api/farmers", farmerRoutes);
 // app.use("/api/nfa", nfaMainRoutes);
 
