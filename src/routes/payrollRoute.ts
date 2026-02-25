@@ -13,7 +13,7 @@ router.post(
     uploadPayroll
   );
 router.get("/", getPayrolls);
-router.post("/:id/comments", addComment);
+router.post("/:id/comments",  authMiddleware, addComment);
 router.post("/:id/approve", approvePayroll);
 router.post("/:id/reject", rejectPayroll);
 

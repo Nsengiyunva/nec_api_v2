@@ -1,9 +1,4 @@
 import { Request, Response } from "express";
-// import { Payroll } from "../models/payroll";
-// import { PayrollComment } from "../models/payroll_comment";
-// import { PayrollStatusHistory } from "../models/payroll_history";
-// import { Admin } from "../models/nec_user";
-
 import { AuthRequest } from '../middleware/authMiddleware'
 
 import { models } from "../models";
@@ -93,7 +88,7 @@ export const getPayrolls = async (req: Request, res: Response) => {
 // ===============================
 // Add Comment (Moves to UNDER_REVIEW if PENDING)
 // ===============================
-export const addComment = async (req: Request, res: Response) => {
+export const addComment = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { comment } = req.body;
@@ -111,7 +106,7 @@ export const addComment = async (req: Request, res: Response) => {
       comment,
     });
 
-    // Move PENDING → UNDER_REVIEW
+   
     if (payroll.status === "PENDING") {
       await PayrollStatusHistory.create({
         payrollId: payroll.id,
