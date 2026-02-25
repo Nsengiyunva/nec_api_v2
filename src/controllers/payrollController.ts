@@ -4,33 +4,58 @@ import { Request, Response } from "express";
 // import { PayrollStatusHistory } from "../models/payroll_history";
 // import { Admin } from "../models/nec_user";
 
+import { AuthRequest } from '../middleware/authMiddleware'
+
 import { models } from "../models";
 const { Payroll, PayrollComment, Admin,PayrollStatusHistory } = models;
 
 // ===============================
 // Upload Payroll
 // ===============================
-export const uploadPayroll = async (req: Request, res: Response) => {
+// export const uploadPayroll = async (req: Request, res: Response) => {
+//   try {
+//     const { month } = req.body;
+//     const file = req.file;
+
+//     if (!file) {
+//       return res.status(400).json({ message: "File required" });
+//     }
+
+//     const payroll = await Payroll.create({
+//       month,
+//       fileName: file.originalname,
+//       filePath: file.path,
+//       fileSize: file.size.toString(),
+//       uploadedBy: (req as any).user.id,
+//       status: "PENDING",
+//     });
+
+//     res.status(201).json(payroll);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Upload failed" });
+//   }
+// }
+
+export const uploadPayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { month } = req.body;
     const file = req.file;
 
-    if (!file) {
-      return res.status(400).json({ message: "File required" });
-    }
+    if (!file) return res.status(400).json({ message: "File required" });
 
     const payroll = await Payroll.create({
       month,
       fileName: file.originalname,
       filePath: file.path,
       fileSize: file.size.toString(),
-      uploadedBy: (req as any).user.id,
+      uploadedBy: req.user?.id || null, // null if not logged in
       status: "PENDING",
     });
 
     res.status(201).json(payroll);
   } catch (error) {
-    console.error(error);
+    console.error("Payroll upload error:", error);
     res.status(500).json({ message: "Upload failed" });
   }
 };
