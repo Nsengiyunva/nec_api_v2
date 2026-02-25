@@ -22,7 +22,7 @@ export const uploadPayroll = async (req: Request, res: Response) => {
       fileName: file.originalname,
       filePath: file.path,
       fileSize: file.size.toString(),
-      uploadedBy: req.user.id,
+      uploadedBy: (req as any).user.id,
       status: "PENDING",
     });
 
@@ -80,7 +80,7 @@ export const addComment = async (req: Request, res: Response) => {
 
     const newComment = await PayrollComment.create({
       payrollId: Number(id),
-      userId: req.user.id,
+      userId: (req as any).user.id,
       comment,
     });
 
@@ -90,7 +90,7 @@ export const addComment = async (req: Request, res: Response) => {
         payrollId: payroll.id,
         oldStatus: payroll.status,
         newStatus: "UNDER_REVIEW",
-        changedBy: req.user.id,
+        changedBy: (req as any).user.id,
       });
 
       payroll.status = "UNDER_REVIEW";
@@ -128,7 +128,7 @@ export const approvePayroll = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Payroll must be under review" });
     }
 
-    if (req.user.role !== "FINANCE") {
+    if ((req as any).user.role !== "FINANCE") {
       return res.status(403).json({ message: "Only Finance can approve" });
     }
 
@@ -136,7 +136,7 @@ export const approvePayroll = async (req: Request, res: Response) => {
       payrollId: payroll.id,
       oldStatus: payroll.status,
       newStatus: "APPROVED",
-      changedBy: req.user.id,
+      changedBy: (req as any).user.id,
     });
 
     payroll.status = "APPROVED";
@@ -166,7 +166,7 @@ export const rejectPayroll = async (req: Request, res: Response) => {
 
     await PayrollComment.create({
       payrollId: payroll.id,
-      userId: req.user.id,
+      userId: (req as any).user.id,
       comment: `REJECTION: ${reason}`,
     });
 
@@ -174,7 +174,7 @@ export const rejectPayroll = async (req: Request, res: Response) => {
       payrollId: payroll.id,
       oldStatus: payroll.status,
       newStatus: "REJECTED",
-      changedBy: req.user.id,
+      changedBy: (req as any).user.id,
     });
 
     payroll.status = "REJECTED";
