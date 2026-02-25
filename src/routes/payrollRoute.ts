@@ -4,7 +4,7 @@ import { upload } from "../config/multer";
 
 const router = Router();
 
-router.post("/", upload.single("file"), uploadPayroll);
+router.post("/create", upload.single("file"), uploadPayroll);
 router.get("/", getPayrolls);
 router.post("/:id/comments", addComment);
 router.post("/:id/approve", approvePayroll);
