@@ -4,37 +4,9 @@ import { AuthRequest } from '../middleware/authMiddleware'
 import { models } from "../models";
 const { Payroll, PayrollComment, Admin,PayrollStatusHistory } = models;
 
-// ===============================
-// Upload Payroll
-// ===============================
-// export const uploadPayroll = async (req: Request, res: Response) => {
-//   try {
-//     const { month } = req.body;
-//     const file = req.file;
-
-//     if (!file) {
-//       return res.status(400).json({ message: "File required" });
-//     }
-
-//     const payroll = await Payroll.create({
-//       month,
-//       fileName: file.originalname,
-//       filePath: file.path,
-//       fileSize: file.size.toString(),
-//       uploadedBy: (req as any).user.id,
-//       status: "PENDING",
-//     });
-
-//     res.status(201).json(payroll);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Upload failed" });
-//   }
-// }
-
 export const uploadPayroll = async (req: AuthRequest, res: Response) => {
   try {
-    const { month } = req.body;
+    const { month, stage } = req.body;
     const file = req.file;
 
     if (!file) return res.status(400).json({ message: "File required" });
@@ -46,6 +18,7 @@ export const uploadPayroll = async (req: AuthRequest, res: Response) => {
       fileSize: file.size.toString(),
       uploadedBy: req.user?.id || null, // null if not logged in
       status: "PENDING",
+      stage: stage
     });
 
     res.status(201).json(payroll);
@@ -133,8 +106,7 @@ export const addComment = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(500).json({ message: "Failed to add comment" });
   }
-};
-
+}
 
 // ===============================
 // Approve Payroll

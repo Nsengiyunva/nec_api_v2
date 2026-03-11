@@ -18,8 +18,9 @@ Payroll.init(
     fileName: { type: DataTypes.STRING, allowNull: false },
     filePath: { type: DataTypes.STRING, allowNull: false },
     fileSize: { type: DataTypes.STRING },
+    stage: { type: DataTypes.INTEGER},
     uploadedBy: { type: DataTypes.STRING },
-    status: { type: DataTypes.STRING, defaultValue: "Pending" },
+    status: { type: DataTypes.STRING},
   },
   { sequelize, tableName: "payroll" }
 );
