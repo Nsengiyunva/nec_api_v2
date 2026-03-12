@@ -17,6 +17,6 @@ router.post("/:id/comments",  authMiddleware, addComment);
 router.post("/:id/approve", approvePayroll);
 router.post("/:id/reject", rejectPayroll);
 
-router.post("/payroll/:id/update", authMiddleware, updatePayrollStage);
+router.post("/:id/update", authMiddleware, updatePayrollStage);
 
 export default router;
