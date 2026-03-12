@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AuthRequest } from '../middleware/authMiddleware'
 
 import { models } from "../models";
+import { sequelize } from "../config/database";
 const { Payroll, PayrollComment, Admin,PayrollStatusHistory } = models;
 
 export const uploadPayroll = async (req: AuthRequest, res: Response) => {
@@ -177,5 +178,91 @@ export const rejectPayroll = async (req: Request, res: Response) => {
     res.json({ message: "Payroll rejected", payroll });
   } catch (error) {
     res.status(500).json({ message: "Rejection failed" });
+  }
+}
+
+export const updatePayrollStage = async (req: Request, res: Response) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const payrollId = req.params.id;
+    const { comment, stage, status } = req.body;
+
+    const userId = (req as any).user?.id; // from auth middleware
+
+    const payroll = await Payroll.findByPk(payrollId, { transaction });
+
+    if (!payroll) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Payroll not found" });
+    }
+
+    const oldStatus = payroll.status;
+
+    /*
+    ----------------------------
+    1. Insert Comment
+    ----------------------------
+    */
+    if (comment) {
+      await PayrollComment.create(
+        {
+          payrollId: payroll.id,
+          userId: userId,
+          comment: comment,
+        },
+        { transaction }
+      );
+    }
+
+    /*
+    ----------------------------
+    2. Update Payroll
+    ----------------------------
+    */
+    if (stage > 1) {
+      await payroll.update(
+        {
+          stage: stage,
+          status: status ?? payroll.status,
+        },
+        { transaction }
+      );
+    }
+
+    /*
+    ----------------------------
+    3. Store Status History
+    ----------------------------
+    */
+    if (status && oldStatus !== status) {
+      await PayrollStatusHistory.create(
+        {
+          payrollId: payroll.id,
+          oldStatus: oldStatus,
+          newStatus: status,
+          changedBy: userId,
+        },
+        { transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: "Payroll updated successfully",
+    });
+
+  } catch (error) {
+
+    await transaction.rollback();
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update payroll",
+      error,
+    });
+
   }
 };

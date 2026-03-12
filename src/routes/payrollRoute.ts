@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getPayrolls,uploadPayroll, addComment, approvePayroll, rejectPayroll } from "../controllers/payrollController";
+import { getPayrolls,uploadPayroll, addComment, approvePayroll, rejectPayroll, updatePayrollStage } from "../controllers/payrollController";
 import { upload } from "../config/multer";
 import { authMiddleware } from "../middleware/authMiddleware";
 
@@ -16,5 +16,7 @@ router.get("/", getPayrolls);
 router.post("/:id/comments",  authMiddleware, addComment);
 router.post("/:id/approve", approvePayroll);
 router.post("/:id/reject", rejectPayroll);
+
+router.post("/payroll/:id/update", authMiddleware, updatePayrollStage);
 
 export default router;
