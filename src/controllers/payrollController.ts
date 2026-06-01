@@ -18,7 +18,7 @@ export const uploadPayroll = async (req: AuthRequest, res: Response) => {
       filePath: file.path,
       fileSize: file.size.toString(),
       uploadedBy: req.user?.id || null, // null if not logged in
-      status: "PENDING",
+      status: "PENDING APPRROVAL",
       stage: stage
     });
 
@@ -70,8 +70,8 @@ export const addComment = async (req: AuthRequest, res: Response) => {
     const payroll = await Payroll.findByPk(id);
     if (!payroll) return res.status(404).json({ message: "Not found" });
 
-    if (payroll.status === "APPROVED") {
-      return res.status(400).json({ message: "Cannot comment on approved payroll" });
+    if (payroll.status === "PAID") {
+      return res.status(400).json({ message: "Cannot comment on paid payroll" });
     }
 
     const newComment = await PayrollComment.create({
@@ -81,15 +81,15 @@ export const addComment = async (req: AuthRequest, res: Response) => {
     });
 
    
-    if (payroll.status === "PENDING") {
+    if (payroll.status === "PENDING APPROVAL") {
       await PayrollStatusHistory.create({
         payrollId: payroll.id,
         oldStatus: payroll.status,
-        newStatus: "UNDER_REVIEW",
+        newStatus: "PENDING APPROVAL",
         changedBy: (req as any).user.id,
       });
 
-      payroll.status = "UNDER_REVIEW";
+      payroll.status = "PENDING APPROVAL";
       await payroll.save();
     }
 
@@ -119,7 +119,7 @@ export const approvePayroll = async (req: Request, res: Response) => {
     const payroll = await Payroll.findByPk(id);
     if (!payroll) return res.status(404).json({ message: "Not found" });
 
-    if (payroll.status !== "UNDER_REVIEW") {
+    if (!(payroll.status == "APPROVED" || payroll.status == "PAID" ) ) {
       return res.status(400).json({ message: "Payroll must be under review" });
     }
 
