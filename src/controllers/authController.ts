@@ -4,6 +4,7 @@ import jwt, { SignOptions  } from "jsonwebtoken";
 import { models } from "../models";
 import dotenv from "dotenv";
 
+
 const {  Admin } = models;
 
 dotenv.config();

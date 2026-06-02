@@ -4,19 +4,23 @@ import authRoutes from "./routes/authRoutes";
 import payrollRoutes from "./routes/payrollRoute";
 import { sequelize, connectDB } from "./config/database";
 import cors from "cors";
+import helmet from 'helmet';
 import listEndpoints from 'express-list-endpoints';
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
+app.use(helmet.contentSecurityPolicy({
+    directives: {
+      connectSrc: ["'self'", "https://necapi.erb.go.ug"],
+    }
+  }));
 app.use(express.json());
 
 
 app.use("/api/auth", authRoutes);
 app.use("/api/payroll", payrollRoutes);
-
-// console.log("JWT_SECRET:", );
 
 
 connectDB();
