@@ -23,7 +23,7 @@ function generateStaffCode(id: number) {
 // ── List staff (paginated, searchable, excludes soft-deleted) ──
 export const getAllStaff = async (req: Request, res: Response) => {
   try {
-    const { search, page = "1", limit = "20" } = req.query;
+    const { search, organisation, department, page = "1", limit = "20" } = req.query;
 
     const pageNum = Math.max(parseInt(String(page), 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 200);
@@ -41,6 +41,12 @@ export const getAllStaff = async (req: Request, res: Response) => {
         { department: { [Op.like]: term } },
         { position: { [Op.like]: term } },
       ];
+    }
+    if (organisation && String(organisation).trim() !== "") {
+      where.organisation = String(organisation).trim();
+    }
+    if (department && String(department).trim() !== "") {
+      where.department = String(department).trim();
     }
 
     const { rows, count } = await Staff.findAndCountAll({
