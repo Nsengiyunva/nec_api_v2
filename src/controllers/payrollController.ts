@@ -308,6 +308,7 @@ export const uploadPayroll = async (req: AuthRequest, res: Response) => {
 export const getPayrolls = async (req: Request, res: Response) => {
   try {
     const payrolls = await Payroll.findAll({
+      where: { deletedAt: null },
       include: [
         {
           model: PayrollComment,
@@ -413,6 +414,13 @@ export const addComment = async (req: AuthRequest, res: Response) => {
 
     if (payroll.status === "PAID") {
       return res.status(400).json({ message: "Cannot comment on paid payroll" });
+    }
+
+    const alreadyCommented = await PayrollComment.findOne({
+      where: { payrollId: Number(id), userId: (req as any).user.id },
+    });
+    if (alreadyCommented) {
+      return res.status(403).json({ message: "You have already submitted your review for this payroll." });
     }
 
     const newComment = await PayrollComment.create({
@@ -524,8 +532,35 @@ export const rejectPayroll = async (req: Request, res: Response) => {
 
 
 // ===============================
-// Update Payroll Stage
+// Soft-delete Payroll (ICT only)
 // ===============================
+export const deletePayroll = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const requester = await Admin.findByPk(req.user?.id);
+    if (!requester || requester.user_type !== "ICT") {
+      return res.status(403).json({ message: "Only ICT staff can delete payroll records." });
+    }
+
+    const payroll = await Payroll.findByPk(id);
+    if (!payroll) {
+      return res.status(404).json({ message: "Payroll not found" });
+    }
+
+    if (payroll.deletedAt) {
+      return res.status(400).json({ message: "Payroll is already deleted" });
+    }
+
+    payroll.deletedAt = new Date();
+    await payroll.save();
+
+    res.json({ success: true, message: "Payroll deleted" });
+  } catch (error) {
+    console.error("deletePayroll error:", error);
+    res.status(500).json({ message: "Failed to delete payroll" });
+  }
+};
 export const updatePayrollStage = async (req: Request, res: Response) => {
   const transaction = await sequelize.transaction();
 
@@ -544,6 +579,18 @@ export const updatePayrollStage = async (req: Request, res: Response) => {
     const oldStatus = payroll.status;
 
     if (comment) {
+      const alreadyCommented = await PayrollComment.findOne({
+        where: { payrollId: payroll.id, userId },
+        transaction,
+      });
+      if (alreadyCommented) {
+        await transaction.rollback();
+        return res.status(403).json({
+          success: false,
+          message: "You have already submitted your review for this payroll.",
+        });
+      }
+
       await PayrollComment.create(
         { payrollId: payroll.id, userId, comment },
         { transaction }

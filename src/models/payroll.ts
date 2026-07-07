@@ -9,6 +9,7 @@ export class Payroll extends Model {
   public fileSize!: string;
   public uploadedBy!: string;
   public status!: string;
+  public deletedAt!: Date | null;
 }
 
 Payroll.init(
@@ -21,6 +22,9 @@ Payroll.init(
     stage: { type: DataTypes.INTEGER},
     uploadedBy: { type: DataTypes.STRING },
     status: { type: DataTypes.STRING},
+    // Soft-delete marker: NULL = active/visible, non-null = deleted
+    // (hidden from normal reads, row itself is never removed).
+    deletedAt: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   },
   { sequelize, tableName: "payroll" }
 );
