@@ -499,6 +499,19 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
         },
         { transaction }
       );
+    } else {
+      // No remark given (only possible where commentRequired is false,
+      // e.g. MD approve/reject) — still leave a trail entry so the
+      // action is visible, using the decision's default label.
+      await PayrollComment.create(
+        {
+          payrollId: payroll.id,
+          userId: requester.id,
+          comment: transition.label,
+          stage: payroll.stage,
+        },
+        { transaction }
+      );
     }
 
     const oldStatus = payroll.status;

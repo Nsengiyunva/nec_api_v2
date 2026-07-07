@@ -21,6 +21,9 @@
 export interface StageTransition {
   nextStage: number;
   status: string;
+  // Fallback trail message used when the actor leaves no remark
+  // (only possible where commentRequired is false, e.g. MD approve/reject).
+  label: string;
 }
 
 export interface StageRule {
@@ -34,52 +37,52 @@ export const PAYROLL_STAGES: Record<number, StageRule> = {
     ownerRole: "ACCOUNTANT",
     commentRequired: true,
     decisions: {
-      submit: { nextStage: 1, status: "PENDING APPROVAL" },
+      submit: { nextStage: 1, status: "PENDING APPROVAL", label: "Submitted the payroll" },
     },
   },
   1: {
     ownerRole: "AUDITOR",
     commentRequired: true,
     decisions: {
-      forward: { nextStage: 2, status: "PENDING APPROVAL" },
-      defer: { nextStage: 0, status: "PENDING APPROVAL" },
+      forward: { nextStage: 2, status: "PENDING APPROVAL", label: "Forwarded to GM Finance" },
+      defer: { nextStage: 0, status: "PENDING APPROVAL", label: "Deferred back to Accountant" },
     },
   },
   2: {
     ownerRole: "GM_FINANCE",
     commentRequired: true,
     decisions: {
-      forward: { nextStage: 3, status: "PENDING APPROVAL" },
-      defer: { nextStage: 1, status: "PENDING APPROVAL" },
+      forward: { nextStage: 3, status: "PENDING APPROVAL", label: "Forwarded to MD" },
+      defer: { nextStage: 1, status: "PENDING APPROVAL", label: "Deferred back to CIA" },
     },
   },
   3: {
     ownerRole: "MD",
     commentRequired: false,
     decisions: {
-      approve: { nextStage: 4, status: "APPROVED" },
-      reject: { nextStage: 2, status: "REJECTED" },
+      approve: { nextStage: 4, status: "APPROVED", label: "Approved" },
+      reject: { nextStage: 2, status: "REJECTED", label: "Rejected" },
     },
   },
   4: {
     ownerRole: "GM_FINANCE",
     commentRequired: true,
     decisions: {
-      forward: { nextStage: 5, status: "PROCESSING PAYMENT" },
+      forward: { nextStage: 5, status: "PROCESSING PAYMENT", label: "Forwarded to Accountant for payment processing" },
     },
   },
   5: {
     ownerRole: "ACCOUNTANT",
     commentRequired: true,
     decisions: {
-      forward: { nextStage: 6, status: "PROCESSING PAYMENT" },
+      forward: { nextStage: 6, status: "PROCESSING PAYMENT", label: "Forwarded to Cashier" },
     },
   },
   6: {
     ownerRole: "CASHIER",
     commentRequired: true,
     decisions: {
-      complete: { nextStage: 7, status: "PAID" },
+      complete: { nextStage: 7, status: "PAID", label: "Marked as paid" },
     },
   },
 };
