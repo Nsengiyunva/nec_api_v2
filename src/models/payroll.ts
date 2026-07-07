@@ -9,6 +9,7 @@ export class Payroll extends Model {
   public fileSize!: string;
   public uploadedBy!: string;
   public status!: string;
+  public stage!: number;
   public deletedAt!: Date | null;
 }
 

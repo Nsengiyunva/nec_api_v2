@@ -26,6 +26,15 @@ app.use(helmet.contentSecurityPolicy({
 
 app.use(express.json());
 
+// app.use(
+//   "/api/external",
+//   createProxyMiddleware({
+//     target: "https://necapi.erb.go.ug",
+//     changeOrigin: true,
+//     pathRewrite: { "^/api/external": "/api" },
+//   })
+// );
+
 app.use("/api/auth", authRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/staff", staffRoutes);
