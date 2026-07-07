@@ -45,6 +45,7 @@ export interface StaffAttributes {
   end_date?: string;
   gender?: string;
   type?: string;
+  deleted_at?: Date | null;
 }
 
 type StaffCreationAttributes = Optional<StaffAttributes, "id">;
@@ -93,6 +94,7 @@ export class Staff extends Model<StaffAttributes, StaffCreationAttributes> imple
   public end_date?: string;
   public gender?: string;
   public type?: string;
+  public deleted_at?: Date | null;
 
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -143,6 +145,9 @@ Staff.init(
     end_date: { type: DataTypes.STRING(255), allowNull: true },
     gender: { type: DataTypes.STRING(50), allowNull: true },
     type: { type: DataTypes.STRING(255), allowNull: true },
+    // Soft-delete marker: NULL = active/visible, non-null = deleted (hidden
+    // from normal reads but the row itself is never removed from the DB).
+    deleted_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   },
   {
     sequelize,

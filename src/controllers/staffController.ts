@@ -20,12 +20,16 @@ function generateStaffCode(id: number) {
   return `NEC-${String(id).padStart(5, "0")}`;
 }
 
-// ── List all staff (with optional search) ──────────────────
+// ── List staff (paginated, searchable, excludes soft-deleted) ──
 export const getAllStaff = async (req: Request, res: Response) => {
   try {
-    const { search } = req.query;
+    const { search, page = "1", limit = "20" } = req.query;
 
-    const where: any = {};
+    const pageNum = Math.max(parseInt(String(page), 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 200);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where: any = { deleted_at: null };
     if (search && String(search).trim() !== "") {
       const term = `%${String(search).trim()}%`;
       where[Op.or] = [
@@ -39,20 +43,60 @@ export const getAllStaff = async (req: Request, res: Response) => {
       ];
     }
 
-    const staff = await Staff.findAll({
+    const { rows, count } = await Staff.findAndCountAll({
       where,
       order: [["id", "DESC"]],
+      limit: limitNum,
+      offset,
+      distinct: true, // required for an accurate count alongside the hasMany includes below
       include: [
         { model: StaffChild, as: "children" },
         { model: StaffSpouse, as: "spouses" },
       ],
     });
 
-    const sanitized = staff.map(sanitize);
-
-    res.json({ success: true, count: sanitized.length, staff: sanitized });
+    res.json({
+      success: true,
+      staff: rows.map(sanitize),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalCount: count,
+        totalPages: Math.max(Math.ceil(count / limitNum), 1),
+      },
+    });
   } catch (error) {
     console.error("getAllStaff error:", error);
+    res.status(500).json({ success: false, message: "Server error", error });
+  }
+};
+
+// ── Aggregate stats across ALL non-deleted staff (not just the current page) ──
+export const getStaffStats = async (_req: Request, res: Response) => {
+  try {
+    const [rows]: any = await sequelize.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN UPPER(status) = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
+        SUM(CASE WHEN LOWER(position) = 'hod' THEN 1 ELSE 0 END) AS hods,
+        COUNT(DISTINCT NULLIF(department, '')) AS departments
+      FROM users
+      WHERE deleted_at IS NULL
+    `);
+
+    const row = (rows && rows[0]) || {};
+
+    res.json({
+      success: true,
+      stats: {
+        total: Number(row.total) || 0,
+        active: Number(row.active) || 0,
+        hods: Number(row.hods) || 0,
+        departments: Number(row.departments) || 0,
+      },
+    });
+  } catch (error) {
+    console.error("getStaffStats error:", error);
     res.status(500).json({ success: false, message: "Server error", error });
   }
 };
@@ -62,7 +106,8 @@ export const getStaffById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const staff = await Staff.findByPk(id, {
+    const staff = await Staff.findOne({
+      where: { id, deleted_at: null },
       include: [
         { model: StaffChild, as: "children" },
         { model: StaffSpouse, as: "spouses" },
@@ -107,7 +152,7 @@ export const createStaff = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "passcode is required" });
     }
 
-    const existing = await Staff.findOne({ where: { email_address } });
+    const existing = await Staff.findOne({ where: { email_address, deleted_at: null } });
     if (existing) {
       await t.rollback();
       return res.status(400).json({ success: false, message: "A staff member with this email already exists" });
@@ -196,7 +241,7 @@ export const updateStaff = async (req: Request, res: Response) => {
     }
 
     if (email_address && email_address !== staff.email_address) {
-      const existing = await Staff.findOne({ where: { email_address }, transaction: t });
+      const existing = await Staff.findOne({ where: { email_address, deleted_at: null }, transaction: t });
       if (existing && existing.id !== staff.id) {
         await t.rollback();
         return res.status(400).json({ success: false, message: "Another staff member already uses this email" });
@@ -276,29 +321,27 @@ export const updateStaff = async (req: Request, res: Response) => {
   }
 };
 
-// ── Delete staff (+ cascade children / spouses) ─────────────
+// ── Soft-delete staff: mark deleted_at, keep the record (and its
+// children/spouses) fully intact in the database. Hidden from normal
+// list/detail reads, but recoverable directly in the DB if ever needed.
 export const deleteStaff = async (req: Request, res: Response) => {
-  const t = await sequelize.transaction();
   try {
     const { id } = req.params;
 
-    const staff = await Staff.findByPk(id, { transaction: t });
+    const staff = await Staff.findByPk(id);
     if (!staff) {
-      await t.rollback();
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
-    if (staff.staff_id) {
-      await StaffChild.destroy({ where: { staff_id: staff.staff_id }, transaction: t });
-      await StaffSpouse.destroy({ where: { staff_id: staff.staff_id }, transaction: t });
+    if (staff.deleted_at) {
+      return res.status(400).json({ success: false, message: "Staff member is already deleted" });
     }
 
-    await staff.destroy({ transaction: t });
-    await t.commit();
+    staff.deleted_at = new Date();
+    await staff.save();
 
     res.json({ success: true, message: "Staff deleted" });
   } catch (error) {
-    await t.rollback();
     console.error("deleteStaff error:", error);
     res.status(500).json({ success: false, message: "Server error", error });
   }
