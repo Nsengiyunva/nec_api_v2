@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes";
 import payrollRoutes from "./routes/payrollRoute";
+import staffRoutes from "./routes/staffRoutes";
 import { sequelize, connectDB } from "./config/database";
 import cors from "cors";
 import helmet from "helmet";
@@ -36,6 +37,7 @@ app.use(
 
 app.use("/api/auth", authRoutes);
 app.use("/api/payroll", payrollRoutes);
+app.use("/api/staff", staffRoutes);
 
 connectDB();
 sequelize.sync().then(() => console.log("Tables synced..."));
