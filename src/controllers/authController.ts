@@ -136,8 +136,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { firstName, lastName, otherNames,  gender,  dob,
       primaryContact, secondaryContact, physicalAddress, postalAddress,
-      role, department, status, station,
-      password } = req.body;
+      role, department, status, station } = req.body;
 
     const user = await Admin.findByPk(id);
 
@@ -161,11 +160,11 @@ export const updateUser = async (req: Request, res: Response) => {
     if (department) user.department = department;
     if (status) user.status = status;
     if (station) user.station = station;
-    // If password is provided → hash it
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      user.password = hashedPassword;
-    }
+    // Note: password changes no longer happen here — see resetPassword below.
+    // (This endpoint used to accept a `password` field with no auth check at
+    // all, which meant anyone who could reach the API could silently take
+    // over any account. Password changes now go through a dedicated,
+    // admin-only endpoint instead.)
 
     await user.save();
 
@@ -176,6 +175,36 @@ export const updateUser = async (req: Request, res: Response) => {
         name: user.name,
         email: user.email,
       },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+}
+
+// Reset a user's password — admin (ICT) only. There's no email/SMTP set up
+// for this system, so this is the whole "reset password" flow: an ICT admin
+// sets a new password for the affected user from the admin panel and shares
+// it with them directly (in person, over the phone, etc).
+export const resetPassword = async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || String(newPassword).length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+
+    const user = await Admin.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({
+      message: `Password reset for ${user.name || user.email}`,
+      user: { id: user.id, name: user.name, email: user.email },
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
