@@ -211,6 +211,49 @@ export const resetPassword = async (req: Request & { user?: any }, res: Response
   }
 }
 
+// Self-service "forgot password" — for a user who still remembers their
+// current password. There's no email/SMTP set up for this system, so this
+// page can't verify identity via a reset link; instead the user proves who
+// they are by supplying their current (old) password, and the endpoint
+// swaps it for the new one they choose. This is separate from, and doesn't
+// replace, the admin-only resetPassword above — that one stays for users
+// who have genuinely lost access and can't supply an old password at all.
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const { email, oldPassword, newPassword } = req.body;
+
+    if (!email || !oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Email, old password and new password are required" });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ message: "New password must be different from the old password" });
+    }
+
+    const user = await Admin.findOne({ where: { email } });
+    if (!user) {
+      // Same generic message as login — don't reveal whether the email exists.
+      return res.status(400).json({ message: "Invalid email or old password" });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email or old password" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully. You can now log in with your new password." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+}
+
 // Get All Users
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
