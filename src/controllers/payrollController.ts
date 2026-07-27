@@ -10,6 +10,26 @@ const { Payroll, PayrollComment, Admin, PayrollStatusHistory } = models;
 
 const COMMENT_USER_ATTRIBUTES = ["id", "firstName", "lastName", "role", "user_type"];
 
+const MONTH_NAMES = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+// "August 2024" -> 2024*12 + 7. Unparseable strings sort to the very
+// bottom (Number.NEGATIVE_INFINITY) instead of throwing or landing
+// in an arbitrary spot.
+function monthSortKey(month: unknown): number {
+  const str = String(month || "").trim().toLowerCase();
+  const match = str.match(/^([a-z]+)\s+(\d{4})$/);
+  if (!match) return Number.NEGATIVE_INFINITY;
+
+  const monthIndex = MONTH_NAMES.indexOf(match[1]);
+  if (monthIndex === -1) return Number.NEGATIVE_INFINITY;
+
+  const year = parseInt(match[2], 10);
+  return year * 12 + monthIndex;
+}
+
 // ===============================
 // Upload Payroll (Accountant only)
 // ===============================
@@ -75,12 +95,6 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
           ],
         },
       ],
-      // `month` is stored as "July 2026" — STR_TO_DATE parses that so
-      // we sort by the payroll's actual period, not upload time. This
-      // matters for backfilled/migrated records, which all share
-      // roughly the same createdAt. Rows with an unparseable month
-      // sort last (MySQL puts NULL last in DESC).
-      order: [[sequelize.literal("STR_TO_DATE(month, '%M %Y')"), "DESC"]],
     });
 
     // ICT are system administrators and can see every payroll
@@ -112,6 +126,12 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     if (status && status !== "All") {
       visible = visible.filter((p: any) => p.status === status);
     }
+
+    // Sort by the payroll's own period ("July 2026"), not upload date —
+    // parsed in JS rather than via MySQL's STR_TO_DATE, which turned out
+    // to not sort as expected (likely a server locale/collation quirk).
+    // Unparseable month strings sort to the very end instead of erroring.
+    visible.sort((a: any, b: any) => monthSortKey(b.month) - monthSortKey(a.month));
 
     // Visibility depends on per-user role/comment history, so it can't
     // be pushed into the SQL WHERE clause without duplicating the
