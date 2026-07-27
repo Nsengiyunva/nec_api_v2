@@ -55,6 +55,11 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Invalid user" });
     }
 
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize ?? "10"), 10) || 10));
+    const search = String(req.query.search ?? "").trim().toLowerCase();
+    const status = String(req.query.status ?? "").trim();
+
     const payrolls = await Payroll.findAll({
       where: { deletedAt: null },
       include: [
@@ -70,7 +75,12 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
           ],
         },
       ],
-      order: [["createdAt", "DESC"]],
+      // `month` is stored as "July 2026" — STR_TO_DATE parses that so
+      // we sort by the payroll's actual period, not upload time. This
+      // matters for backfilled/migrated records, which all share
+      // roughly the same createdAt. Rows with an unparseable month
+      // sort last (MySQL puts NULL last in DESC).
+      order: [[sequelize.literal("STR_TO_DATE(month, '%M %Y')"), "DESC"]],
     });
 
     // ICT are system administrators and can see every payroll
@@ -80,7 +90,7 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     // Stage >= VISIBILITY_OPEN_STAGE (approved by MD through paid) is
     // visible to everyone. Below that, only the current stage owner
     // and anyone who has already acted on this specific payroll.
-    const visible = payrolls.filter((p: any) => {
+    let visible = payrolls.filter((p: any) => {
       if (isIct) return true;
       if (p.stage >= VISIBILITY_OPEN_STAGE) return true;
 
@@ -91,7 +101,29 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
       return comments.some((c: any) => c.userId === requester.id);
     });
 
-    res.json(visible);
+    if (search) {
+      visible = visible.filter(
+        (p: any) =>
+          String(p.month || "").toLowerCase().includes(search) ||
+          String(p.fileName || "").toLowerCase().includes(search)
+      );
+    }
+
+    if (status && status !== "All") {
+      visible = visible.filter((p: any) => p.status === status);
+    }
+
+    // Visibility depends on per-user role/comment history, so it can't
+    // be pushed into the SQL WHERE clause without duplicating the
+    // workflow rules there — pagination is applied after filtering
+    // in-memory instead. Fine at current volumes; if the table grows
+    // into the tens of thousands, move the visibility check into SQL.
+    const total = visible.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    const paged = visible.slice(start, start + pageSize);
+
+    res.json({ data: paged, page, pageSize, total, totalPages });
   } catch (error) {
     console.error("getPayrolls error:", error);
     res.status(500).json({ message: "Failed to fetch payrolls" });
