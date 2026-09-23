@@ -12,6 +12,9 @@ export const models = { Payroll, PayrollComment, Admin, PayrollStatusHistory, St
 PayrollComment.belongsTo(Payroll, { foreignKey: "payrollId" });
 PayrollComment.belongsTo(Admin, { foreignKey: "userId", as: "user" });
 Payroll.hasMany(PayrollComment, { foreignKey: "payrollId", as: "comments" });
+// Uploader lookup for display only. constraints:false — payroll.uploadedBy
+// is a STRING column in the existing table, so no DB-level FK is attempted.
+Payroll.belongsTo(Admin, { foreignKey: "uploadedBy", targetKey: "id", as: "uploader", constraints: false });
 
 // Staff associations — children/spouses reference the staff's business
 // `staff_id` code (not the numeric `id` primary key), matching the legacy schema.

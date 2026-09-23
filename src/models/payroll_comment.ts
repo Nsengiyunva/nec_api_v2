@@ -7,6 +7,8 @@ export class PayrollComment extends Model {
   public userId!: number;
   public comment!: string;
   public stage!: number | null;
+  public actorName!: string | null;
+  public actorRole!: string | null;
 }
 
 PayrollComment.init(
@@ -19,6 +21,13 @@ PayrollComment.init(
     // Lets us tell "already acted at this exact stage" apart from having
     // commented earlier in the payroll's overall journey.
     stage: { type: DataTypes.INTEGER, allowNull: true },
+    // Snapshot of WHO acted and in WHAT capacity at the time of the
+    // action. The trail must not change when a user account is later
+    // renamed or re-roled (e.g. the old CIA account becoming the HRM
+    // account) — so the UI reads these first and only falls back to
+    // the live nec_user row for comments that pre-date the snapshot.
+    actorName: { type: DataTypes.STRING, allowNull: true },
+    actorRole: { type: DataTypes.STRING, allowNull: true },
   },
   { sequelize, tableName: "payroll_comments", timestamps: true }
 );

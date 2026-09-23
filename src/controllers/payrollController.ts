@@ -5,10 +5,26 @@ import { basename } from 'path';
 
 import { models } from "../models";
 import { sequelize } from "../config/database";
-import { PAYROLL_STAGES, VISIBILITY_OPEN_STAGE } from "../config/payrollWorkflow";
+import { PAYROLL_STAGES, VISIBILITY_OPEN_STAGE, OPEN_STATUSES, effectiveStage, normalizeRole } from "../config/payrollWorkflow";
 const { Payroll, PayrollComment, Admin, PayrollStatusHistory } = models;
 
 const COMMENT_USER_ATTRIBUTES = ["id", "firstName", "lastName", "role", "user_type"];
+
+// Shared include: comments (oldest first) with their author, plus the uploader.
+const PAYROLL_INCLUDE = [
+  {
+    model: PayrollComment,
+    as: "comments",
+    separate: true, // own query so ORDER BY applies cleanly per payroll
+    order: [["createdAt", "ASC"], ["id", "ASC"]] as any,
+    include: [{ model: Admin, as: "user", attributes: COMMENT_USER_ATTRIBUTES }],
+  },
+  { model: Admin, as: "uploader", attributes: COMMENT_USER_ATTRIBUTES, required: false },
+];
+
+function fullName(u: any): string {
+  return [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim() || u?.name || "";
+}
 
 const MONTH_NAMES = [
   "january", "february", "march", "april", "may", "june",
@@ -82,20 +98,15 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
 
     const payrolls = await Payroll.findAll({
       where: { deletedAt: null },
-      include: [
-        {
-          model: PayrollComment,
-          as: "comments",
-          include: [
-            {
-              model: Admin,
-              as: "user",
-              attributes: COMMENT_USER_ATTRIBUTES,
-            },
-          ],
-        },
-      ],
+      include: PAYROLL_INCLUDE as any,
     });
+
+    // Legacy rows may have a NULL/non-numeric stage — derive one from the
+    // status so they're filtered, displayed and actioned consistently.
+    for (const p of payrolls as any[]) {
+      const eff = effectiveStage(p);
+      if (p.stage !== eff) p.setDataValue("stage", eff);
+    }
 
     // ICT are system administrators and can see every payroll
     // regardless of stage.
@@ -104,12 +115,14 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     // Stage >= VISIBILITY_OPEN_STAGE (approved by MD through paid) is
     // visible to everyone. Below that, only the current stage owner
     // and anyone who has already acted on this specific payroll.
+    const myRole = normalizeRole(requester.user_type);
     let visible = payrolls.filter((p: any) => {
       if (isIct) return true;
       if (p.stage >= VISIBILITY_OPEN_STAGE) return true;
+      if (OPEN_STATUSES.has(String(p.status || "").toUpperCase())) return true;
 
       const ownerRole = PAYROLL_STAGES[p.stage]?.ownerRole;
-      if (ownerRole && requester.user_type === ownerRole) return true;
+      if (ownerRole && myRole === ownerRole) return true;
 
       const comments = Array.isArray(p.comments) ? p.comments : [];
       return comments.some((c: any) => c.userId === requester.id);
@@ -124,7 +137,8 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     }
 
     if (status && status !== "All") {
-      visible = visible.filter((p: any) => p.status === status);
+      const wanted = status.toUpperCase();
+      visible = visible.filter((p: any) => String(p.status || "").trim().toUpperCase() === wanted);
     }
 
     // Sort by the payroll's own period ("July 2026"), not upload date —
@@ -238,7 +252,8 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Payroll not found" });
     }
 
-    const stageRule = PAYROLL_STAGES[payroll.stage];
+    const currentStage = effectiveStage(payroll);
+    const stageRule = PAYROLL_STAGES[currentStage];
     if (!stageRule) {
       await transaction.rollback();
       return res.status(400).json({ message: "This payroll has already completed its workflow." });
@@ -250,7 +265,7 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Invalid user" });
     }
 
-    if (requester.user_type !== stageRule.ownerRole) {
+    if (normalizeRole(requester.user_type) !== stageRule.ownerRole) {
       await transaction.rollback();
       return res.status(403).json({ message: "It is not your turn to act on this payroll." });
     }
@@ -269,7 +284,7 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
 
     // One action per user per stage on a given payroll.
     const alreadyActed = await PayrollComment.findOne({
-      where: { payrollId: payroll.id, userId: requester.id, stage: payroll.stage },
+      where: { payrollId: payroll.id, userId: requester.id, stage: currentStage },
       transaction,
     });
     if (alreadyActed) {
@@ -283,7 +298,9 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
           payrollId: payroll.id,
           userId: requester.id,
           comment: String(comment).trim(),
-          stage: payroll.stage,
+          stage: currentStage,
+          actorName: fullName(requester),
+          actorRole: normalizeRole(requester.user_type),
         },
         { transaction }
       );
@@ -296,7 +313,9 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
           payrollId: payroll.id,
           userId: requester.id,
           comment: transition.label,
-          stage: payroll.stage,
+          stage: currentStage,
+          actorName: fullName(requester),
+          actorRole: normalizeRole(requester.user_type),
         },
         { transaction }
       );
@@ -322,15 +341,7 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
 
     await transaction.commit();
 
-    const updated = await Payroll.findByPk(payroll.id, {
-      include: [
-        {
-          model: PayrollComment,
-          as: "comments",
-          include: [{ model: Admin, as: "user", attributes: COMMENT_USER_ATTRIBUTES }],
-        },
-      ],
-    });
+    const updated = await Payroll.findByPk(payroll.id, { include: PAYROLL_INCLUDE as any });
 
     res.json({ success: true, message: "Payroll updated", payroll: updated });
   } catch (error) {

@@ -21,8 +21,6 @@
 export interface StageTransition {
   nextStage: number;
   status: string;
-  // Fallback trail message used when the actor leaves no remark
-  // (only possible where commentRequired is false, e.g. MD approve/reject).
   label: string;
 }
 
@@ -90,3 +88,38 @@ export const PAYROLL_STAGES: Record<number, StageRule> = {
 // Stage at/above which a payroll is visible to every role, regardless
 // of whether they've acted on it: covers "approved by MD" through "paid".
 export const VISIBILITY_OPEN_STAGE = 4;
+
+// Statuses that mean "approved by MD or later". Used alongside the stage
+// number so records whose `stage` column is NULL/garbled (legacy rows
+// created before the stage column existed) are still visible to everyone
+// once approved — previously those rows were silently filtered out of
+// every page for anyone who wasn't ICT.
+export const OPEN_STATUSES = new Set(["APPROVED", "PROCESSING PAYMENT", "PAID"]);
+
+// Best-guess stage for rows where `stage` is NULL or not a number.
+const STATUS_TO_STAGE: Record<string, number> = {
+  "DRAFT": 0,
+  "PENDING APPROVAL": 1,
+  "REJECTED": 2,
+  "APPROVED": 4,
+  "PROCESSING PAYMENT": 5,
+  "PAID": 7,
+};
+
+export function effectiveStage(p: { stage?: unknown; status?: unknown }): number {
+  const raw = p?.stage;
+  if (raw !== null && raw !== undefined && raw !== "" && Number.isFinite(Number(raw))) {
+    return Number(raw);
+  }
+  const status = String(p?.status ?? "").trim().toUpperCase();
+  return STATUS_TO_STAGE[status] ?? 0;
+}
+
+// The HRM role has been stored as "HR", "HRM" (and historically the
+// frontend compared against "HR" while this file used "HRM"). Normalise
+// before comparing so the HRM can actually act on stage 1.
+export function normalizeRole(role: unknown): string {
+  const r = String(role ?? "").trim().toUpperCase();
+  if (r === "HR") return "HRM";
+  return r;
+}
