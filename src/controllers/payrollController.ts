@@ -5,7 +5,10 @@ import { basename } from 'path';
 
 import { models } from "../models";
 import { sequelize } from "../config/database";
-import { PAYROLL_STAGES, VISIBILITY_OPEN_STAGE, OPEN_STATUSES, effectiveStage, normalizeRole } from "../config/payrollWorkflow";
+import {
+  PAYROLL_STAGES, VISIBILITY_OPEN_STAGE, OPEN_STATUSES, effectiveStage, normalizeRole,
+  HRM_FIRST_PAYROLL_MONTH, LEGACY_STAGE1_REVIEWER,
+} from "../config/payrollWorkflow";
 const { Payroll, PayrollComment, Admin, PayrollStatusHistory } = models;
 
 const COMMENT_USER_ATTRIBUTES = ["id", "firstName", "lastName", "role", "user_type"];
@@ -21,6 +24,14 @@ const PAYROLL_INCLUDE = [
   },
   { model: Admin, as: "uploader", attributes: COMMENT_USER_ATTRIBUTES, required: false },
 ];
+
+function isSoftDeleted(v: unknown): boolean {
+  if (v === null || v === undefined || v === "") return false;
+  const s = String(v);
+  if (s.startsWith("0000-00-00")) return false;
+  const d = new Date(v as any);
+  return !isNaN(d.getTime()) && d.getFullYear() > 1970;
+}
 
 function fullName(u: any): string {
   return [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim() || u?.name || "";
@@ -44,6 +55,34 @@ function monthSortKey(month: unknown): number {
 
   const year = parseInt(match[2], 10);
   return year * 12 + monthIndex;
+}
+
+// Resolve who each comment should be displayed as. Uses the snapshot
+// (actorName/actorRole) when present, else the live user row — then, for
+// payrolls BEFORE the HRM era, any HRM/HR/AUDITOR-labelled comment is
+// shown as the CIA (Edson Oyera), since the HRM role didn't exist yet.
+function applyCommentAttribution(payroll: any) {
+  const isPreHrm = monthSortKey(payroll?.month) < monthSortKey(HRM_FIRST_PAYROLL_MONTH);
+  const comments: any[] = payroll?.comments || [];
+  for (const c of comments) {
+    const u = c.user || {};
+    let name = (c.actorName && String(c.actorName).trim()) || fullName(u);
+    let role = normalizeRole(c.actorRole || u.user_type || u.role);
+
+    if (isPreHrm && (role === "HRM" || role === "AUDITOR" || role === "CIA")) {
+      name = LEGACY_STAGE1_REVIEWER.name;
+      role = LEGACY_STAGE1_REVIEWER.role;
+    }
+
+    if (typeof c.setDataValue === "function") {
+      c.setDataValue("actorName", name);
+      c.setDataValue("actorRole", role);
+    } else {
+      c.actorName = name;
+      c.actorRole = role;
+    }
+  }
+  return payroll;
 }
 
 // ===============================
@@ -96,10 +135,12 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     const search = String(req.query.search ?? "").trim().toLowerCase();
     const status = String(req.query.status ?? "").trim();
 
-    const payrolls = await Payroll.findAll({
-      where: { deletedAt: null },
-      include: PAYROLL_INCLUDE as any,
-    });
+    // Soft-delete is checked in JS, not SQL: legacy rows can carry a
+    // MySQL zero-date ('0000-00-00 00:00:00') in deletedAt, which is
+    // NOT NULL (so `WHERE deletedAt IS NULL` silently dropped them) but
+    // is not a real deletion either.
+    const allRows = await Payroll.findAll({ include: PAYROLL_INCLUDE as any });
+    const payrolls = allRows.filter((p: any) => !isSoftDeleted(p.deletedAt));
 
     // Legacy rows may have a NULL/non-numeric stage — derive one from the
     // status so they're filtered, displayed and actioned consistently.
@@ -108,24 +149,18 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
       if (p.stage !== eff) p.setDataValue("stage", eff);
     }
 
-    // ICT are system administrators and can see every payroll
-    // regardless of stage.
+    // Visibility (per the agreed requirement: "allow all users to view
+    // all approved, paid, pending approval"): every submitted payroll is
+    // visible to every signed-in user. Only an un-submitted DRAFT is
+    // private — visible to ICT, Accountants and whoever uploaded it.
+    // The old per-stage/per-commenter rule hid most records from most
+    // roles, which is why the list showed fewer payrolls than the DB.
     const isIct = requester.user_type === "ICT";
-
-    // Stage >= VISIBILITY_OPEN_STAGE (approved by MD through paid) is
-    // visible to everyone. Below that, only the current stage owner
-    // and anyone who has already acted on this specific payroll.
     const myRole = normalizeRole(requester.user_type);
     let visible = payrolls.filter((p: any) => {
-      if (isIct) return true;
-      if (p.stage >= VISIBILITY_OPEN_STAGE) return true;
-      if (OPEN_STATUSES.has(String(p.status || "").toUpperCase())) return true;
-
-      const ownerRole = PAYROLL_STAGES[p.stage]?.ownerRole;
-      if (ownerRole && myRole === ownerRole) return true;
-
-      const comments = Array.isArray(p.comments) ? p.comments : [];
-      return comments.some((c: any) => c.userId === requester.id);
+      const isDraft = String(p.status || "").trim().toUpperCase() === "DRAFT";
+      if (!isDraft) return true;
+      return isIct || myRole === "ACCOUNTANT" || String(p.uploadedBy) === String(requester.id);
     });
 
     if (search) {
@@ -157,7 +192,14 @@ export const getPayrolls = async (req: AuthRequest, res: Response) => {
     const start = (page - 1) * pageSize;
     const paged = visible.slice(start, start + pageSize);
 
-    res.json({ data: paged, page, pageSize, total, totalPages });
+    paged.forEach(applyCommentAttribution);
+
+    // ICT-only reconciliation numbers, to compare against the DB directly.
+    const counts = isIct
+      ? { inTable: allRows.length, softDeleted: allRows.length - payrolls.length, active: payrolls.length, matchingFilters: total }
+      : undefined;
+
+    res.json({ data: paged, page, pageSize, total, totalPages, counts });
   } catch (error) {
     console.error("getPayrolls error:", error);
     res.status(500).json({ message: "Failed to fetch payrolls" });
@@ -247,7 +289,7 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
     const { comment, decision } = req.body;
 
     const payroll = await Payroll.findByPk(id, { transaction });
-    if (!payroll || payroll.deletedAt) {
+    if (!payroll || isSoftDeleted(payroll.deletedAt)) {
       await transaction.rollback();
       return res.status(404).json({ message: "Payroll not found" });
     }
@@ -343,6 +385,8 @@ export const actionPayroll = async (req: AuthRequest, res: Response) => {
 
     const updated = await Payroll.findByPk(payroll.id, { include: PAYROLL_INCLUDE as any });
 
+    if (updated) applyCommentAttribution(updated);
+
     res.json({ success: true, message: "Payroll updated", payroll: updated });
   } catch (error) {
     await transaction.rollback();
@@ -369,7 +413,7 @@ export const deletePayroll = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Payroll not found" });
     }
 
-    if (payroll.deletedAt) {
+    if (isSoftDeleted(payroll.deletedAt)) {
       return res.status(400).json({ message: "Payroll is already deleted" });
     }
 

@@ -123,3 +123,14 @@ export function normalizeRole(role: unknown): string {
   if (r === "HR") return "HRM";
   return r;
 }
+
+
+// ------------------------------------------------------------
+// Historical stage-1 reviewer.
+// The HRM role (Solomon Ssentamu) only started with the August 2026
+// payroll. Before that, stage 1 was handled by the CIA / Auditor,
+// Edson Oyera. The CIA's old account was re-used for the HRM, so older
+// comments point at the HRM's user row — relabel them on read.
+// ------------------------------------------------------------
+export const HRM_FIRST_PAYROLL_MONTH = "August 2026";
+export const LEGACY_STAGE1_REVIEWER = { name: "Edson Oyera", role: "CIA" };
