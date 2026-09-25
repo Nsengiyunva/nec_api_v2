@@ -118,9 +118,13 @@ export function effectiveStage(p: { stage?: unknown; status?: unknown }): number
 // The HRM role has been stored as "HR", "HRM" (and historically the
 // frontend compared against "HR" while this file used "HRM"). Normalise
 // before comparing so the HRM can actually act on stage 1.
+// Accounts created before the rename can still carry "AUDITOR" (the
+// frontend already labels it "HRM"), so treat it as HRM too — otherwise
+// the HRM sees the payroll but can never comment/action stage 1.
+const HRM_ALIASES = new Set(["HR", "HRM", "AUDITOR"]);
 export function normalizeRole(role: unknown): string {
   const r = String(role ?? "").trim().toUpperCase();
-  if (r === "HR") return "HRM";
+  if (HRM_ALIASES.has(r)) return "HRM";
   return r;
 }
 
